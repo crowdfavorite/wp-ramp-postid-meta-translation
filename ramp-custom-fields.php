@@ -2,7 +2,7 @@
 /*
 Plugin Name: RAMP Custom Fields
 Plugin URI: http://crowdfavorite.com
-Description: Add custom fields to the RAMP process. Note that the data pushed by this plugin is not translated in any way.
+Description: Adds the ability to select which custom fields represent a post mapping and adds them to the batch
 Version: 1.0
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com 
@@ -28,39 +28,8 @@ function ramp_meta_init() {
 	foreach (ramp_meta_keys() as $key) {
 		cfr_register_metadata($key);
 	}
-	cfd_register_deploy_callback(
-		__('Custom Fields', 'ramp-custom-fields'),
-		__('Choose the custom fields you want to include in the RAMP Settings.', 'ramp-custom-fields'),
-		array(
-			'send_callback' => 'ramp_meta_batch_send', 
-			'receive_callback' => 'ramp_meta_batch_receive',
-			'preflight_check_callback' => 'ramp_meta_preflight',
-		)
-	);
 }
 add_action('admin_init', 'ramp_meta_init');
-
-function ramp_meta_preflight() {
-	error_log('test');
-	echo 'Preflight test';
-}
-
-function ramp_meta_batch_send($batch) {
-	error_log(print_r($batch,1));
-	die();
-}
-
-function ramp_meta_batch_receive($batch) {
-
-$success = true;
-$message = 'TODO';
-
-	// REQUIRED: must return a message
-	return array(
-		'success' => $success, // boolean, wether the callback succeeded or not
-		'message' => $message  // a message to go along with the appropriate $success setting
-	);
-}
 
 function ramp_meta_validate($settings) {
 // TODO
@@ -152,3 +121,74 @@ function ramp_meta_available_keys() {
 	");
 }
 
+function ramp_meta_cfd_init() {
+	$rpe_deploy_callbacks = new Ramp_Meta;
+	$rpe_deploy_callbacks->add_actions();
+}
+add_action('cfd_admin_init', 'ramp_meta_cfd_init');
+
+class Ramp_Meta {
+	var $existing_ids = array(); // Ids already processed or in the batch
+	var $added_posts = array(); // New Posts added to the batch
+	var $data = array();
+	
+	function __construct() {
+		$this->meta_keys_to_map = ramp_meta_keys();
+	}
+
+	function add_actions() {
+		add_action('ramp_pre_get_deploy_data', array($this, 'pre_get_deploy_data'));
+	}
+
+	/**
+	 * Process a post so any of the mapped meta keys also get processed in the batch
+	 * 
+	 * @param int $post_id ID of a post to map
+	 **/
+	function process_post($post_id) {
+		$meta = get_metadata('post', $post_id);
+		if (is_array($meta)) {
+			foreach ($meta as $meta_key => $meta_values) {
+				// $meta_values should always be an array
+				if (is_array($meta_values)) {
+					foreach ($meta_values as $meta_value) {
+						if (in_array($meta_key, $this->meta_keys_to_map) && (int)$meta_value > 0) {
+							// Check existance
+							$new_post = get_post($meta_value);
+							// Dont process if the post is already in the batch it will be or has been processed
+							if ($new_post && !in_array($new_post->ID, $this->existing_ids)) {
+								if (!is_array($this->data['post_types'][$new_post->post_type])) {
+									$this->data['post_types'][$new_post->post_type] = array();
+								}
+								$this->data['post_types'][$new_post->post_type][] = $new_post->ID;
+								$this->existing_ids[] = $new_post->ID;
+								$this->added_posts[] = $new_post;
+								$this->process_post($new_post->ID);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+
+	function pre_get_deploy_data($batch) {
+		// We get a reference to the object but not arrays
+		$this->data = $batch->data;
+		$existing_ids = array();
+		if (is_array($this->data['post_types'])) {
+			foreach ($this->data['post_types'] as $post_type => $post_ids) {
+				foreach ($post_ids as $post_id) {
+					$this->existing_ids[] = $post_id;
+				}
+			}
+
+			foreach ($this->data['post_types'] as $post_type => $post_ids) {
+				$this->process_post($post_id);
+			}
+		}
+
+		$batch->data = $this->data;
+	}
+}
