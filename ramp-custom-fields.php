@@ -122,8 +122,8 @@ function ramp_meta_available_keys() {
 }
 
 function ramp_meta_cfd_init() {
-	$rpe_deploy_callbacks = new Ramp_Meta;
-	$rpe_deploy_callbacks->add_actions();
+	$ramp_meta = Ramp_Meta::factory();
+	$ramp_meta->add_actions();
 }
 add_action('cfd_admin_init', 'ramp_meta_cfd_init');
 
@@ -131,17 +131,34 @@ class Ramp_Meta {
 	var $existing_ids = array(); // Ids already processed or in the batch
 	var $added_posts = array(); // New Posts added to the batch
 	var $data = array();
-	
+	var $client_server_post_mappings = array(); // Store the client id => server id mapping
+
+	static $instance;
+
+	// Singleton 
+	public function factory() {
+		if (!isset(self::$instance)) {
+			self::$instance = new Ramp_Meta;
+		}
+		return self::$instance;
+	}
+
 	function __construct() {
 		$this->meta_keys_to_map = ramp_meta_keys();
+		$this->id = rand();
 	}
 
 	function add_actions() {
+		// Client Actions
 		add_action('ramp_pre_get_deploy_data', array($this, 'pre_get_deploy_data'));
+		
+		// Server actions
+		add_filter('ramp_preflight_post', array($this, 'preflight_post'), 10, 3);
 	}
 
 	/**
 	 * Process a post so any of the mapped meta keys also get processed in the batch
+	 * Runs on client
 	 * 
 	 * @param int $post_id ID of a post to map
 	 **/
@@ -162,7 +179,12 @@ class Ramp_Meta {
 								}
 								$this->data['post_types'][$new_post->post_type][] = $new_post->ID;
 								$this->existing_ids[] = $new_post->ID;
-								$this->added_posts[] = $new_post;
+								// Use for processes and notices
+								$this->added_posts[$new_post->ID] = array(
+														'post_title' => $new_post->post_title,
+														'post_type' => $new_post->post_type,
+														'guid' => $new_post->guid
+													);
 								$this->process_post($new_post->ID);
 							}
 						}
@@ -172,7 +194,7 @@ class Ramp_Meta {
 		}
 	}
 
-
+	// Runs on the client
 	function pre_get_deploy_data($batch) {
 		// We get a reference to the object but not arrays
 		$this->data = $batch->data;
@@ -188,7 +210,44 @@ class Ramp_Meta {
 				$this->process_post($post_id);
 			}
 		}
+		// So the server knows which ones are added 
+		$this->data['extras']['ramp_meta_added'] = $this->added_posts;
+		$this->data['extras']['ramp_meta_keys'] = $this->meta_keys_to_map;
 
 		$batch->data = $this->data;
 	}
+
+	// Runs on server
+	function preflight_post($ret, $post, $batch_items) {
+		if (!empty($batch_items['extras']['ramp_meta_added'])) {
+			$meta_added = $batch_items['extras']['ramp_meta_added'];
+			$mapped_keys = $batch_items['extras']['ramp_meta_keys'];
+
+			// Show notice that this post was not originally in the batch, but added by Ramp Meta
+			if (in_array($post['post']['ID'], array_keys($meta_added))) {
+				$ret['__notice__'][] =  __('This post was added by the Ramp Meta Plugin.', 'ramp-meta');
+			}
+
+			// Show notice on post of what items the meta maps to
+			if (isset($post['meta']) && is_array($post['meta'])) {
+				foreach ($post['meta'] as $meta_key => $meta_value) {
+					if (in_array($meta_value, array_keys($meta_added)) && in_array($meta_key, $mapped_keys)) {
+						$guid = $meta_added[$meta_value]['guid'];
+						$post_type = $meta_added[$meta_value]['post_type'];
+
+						// Need to ensure that the post is still there, throw an error if its not
+						if (isset($batch_items['post_types'][$post_type][$guid])) {
+							$ret['__notice__'][] =  sprintf(__('%s "%s" was found mapped in the post meta and has been added to the batch.', 'ramp-meta'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+						}
+						else {
+							$ret['__error__'][] =  sprintf(__('%s "%s" was mapped by the Ramp Meta plugin but not found in the batch.', 'ramp-meta'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+						}
+					} 
+				}
+			}
+		}
+
+		return $ret;
+	}
+
 }
