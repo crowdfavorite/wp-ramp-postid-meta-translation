@@ -160,6 +160,8 @@ class RAMP_Meta_Mappings {
 	var $client_server_post_mappings = array(); // Store the client id => server id mapping
 	var $comparison_data = array();
 	var $comparison_key = '_ramp_meta_comp_data';
+	var $history_key = '_ramp_meta_history_data';
+	var $name = 'RAMP Meta Mappings';
 
 	static $instance;
 
@@ -174,7 +176,6 @@ class RAMP_Meta_Mappings {
 	function __construct() {
 		$this->meta_keys_to_map = ramp_meta_keys();
 		$this->extras_id = cfd_make_callback_id('ramp_meta_keys');
-		$this->name = 'RAMP Meta Mappings';
 	}
 
 	function add_actions() {
@@ -202,6 +203,8 @@ class RAMP_Meta_Mappings {
 
 		// Cleanup
 		add_filter('ramp_close_batch_send', array($this, 'close_batch_send'));
+
+		add_filter('ramp_history_data', array($this, 'history_data'), 10, 2);
 
 	// Server actions
 		// Preps the data with the meta keys to map
@@ -324,6 +327,7 @@ class RAMP_Meta_Mappings {
 	 * @param bool $add_guid whether or not to add this guid to the set of batch posts. Prevents loading the same posts into memory
 	 **/
 	function process_post($post_id, $add_guid = true) {
+		error_log($post_id);
 		if ($add_guid) { 
 			$this->batch_posts[] = cfd_get_post_guid($post_id);
 		}
@@ -427,10 +431,40 @@ class RAMP_Meta_Mappings {
 
 	/**
 	 * Runs on Client after sending a batch
+	 * Store history data
 	 * Cleanup meta that was saved to the batch post
 	 **/ 
 	function close_batch_send($args) {
-		$this->delete_comparison_data($args['batch_id']);
+		//error_log(print_r($args,1));
+		$batch_id = $args['batch_id'];
+		$batch = new cfd_batch(array('ID' => intval($batch_id)));
+
+		$this->pre_get_deploy_data($batch);
+		$history_data = array(
+			'meta_keys' => $this->meta_keys_to_map,
+			'posts' => $this->added_posts,
+		);
+		update_post_meta($batch_id, $this->history_key, $history_data);
+		// Cleanup
+		$this->delete_comparison_data($batch_id);
+	}
+
+	function history_data($data, $batch_id) {
+		$rm_data = get_post_meta($batch_id, '_ramp_meta_history_data', true);
+		foreach ((array) $rm_data['posts'] as $post_id => $post_data) {
+			$post_type = $post_data['post_type'];
+			if (!in_array($post_data['guid'], (array)$data['post_types'][$post_type])) {
+				$data['post_types'][$post_type][$post_data['guid']] = array(
+					'post' => array(
+						'ID' => $post_id,
+						'post_title' => $post_data['post_title'],
+						'post_type' => $post_data['post_type'],
+					),
+				);
+			}
+		}
+		
+		return $data;
 	}
 
 // Server functions
