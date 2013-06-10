@@ -195,10 +195,10 @@ class RAMP_Meta_Mappings {
 
 		// Extras handling
 		add_action('ramp_extras_preflight_name', array($this, 'extras_preflight_name'), 10, 2);
-		add_filter('ramp_get_comparison_extras', array($this, 'get_extras'));
-		add_filter('ramp_get_preflight_extras', array($this, 'get_extras'));
-		add_filter('ramp_get_deploy_extras', array($this, 'get_extras'));
-		add_filter('ramp_add_extras_comparison_data', array($this, 'get_extras'));
+		add_filter('ramp_get_comparison_extras', array($this, 'get_extras_filter'));
+		add_filter('ramp_get_preflight_extras', array($this, 'get_extras_filter'));
+		add_filter('ramp_get_deploy_extras', array($this, 'get_deploy_extras'), 10, 2);
+		add_filter('ramp_add_extras_comparison_data', array($this, 'get_extras_filter'));
 		add_action('ramp_do_batch_extra_send', array($this, 'do_batch_extra_send'), 10, 2);
 
 		// Cleanup
@@ -289,12 +289,11 @@ class RAMP_Meta_Mappings {
 				if (in_array($meta_key, $this->meta_keys_to_map)) {
 					$guid = cfd_get_post_guid($meta_value);
 					if ($guid) {
-						$post->profle['meta']['meta_key'] = $guid;
+						$post->profile['meta'][$meta_key] = $guid;
 					}
 				}
 			}
 		}
-		
 		return $post;
 	}
 
@@ -327,7 +326,6 @@ class RAMP_Meta_Mappings {
 	 * @param bool $add_guid whether or not to add this guid to the set of batch posts. Prevents loading the same posts into memory
 	 **/
 	function process_post($post_id, $add_guid = true) {
-		error_log($post_id);
 		if ($add_guid) { 
 			$this->batch_posts[] = cfd_get_post_guid($post_id);
 		}
@@ -367,24 +365,40 @@ class RAMP_Meta_Mappings {
 	}
 
 	// Helper for displaying the meta keys
-	function meta_to_markup() {
-		return '<code>'.implode('</code>, <code>', $this->meta_keys_to_map).'</code>';
+	function meta_to_markup($meta_keys) {
+		return '<code>'.implode('</code>, <code>', $meta_keys).'</code>';
 	}
 
 	/**
 	 * Runs on the client
 	 * Add extra meta data to pass from client to server
 	 **/ 
-	function get_extras($extras) {
+	function get_extras($extras, $type = 'default') {
+		if ($type == 'history') {
+			$batch_id = $_GET['batch'];
+			$meta = get_post_meta($batch_id, $this->history_key, true);
+			$meta_keys = isset($meta['meta_keys']) ? $meta['meta_keys'] : array();
+		}
+		else {
+			$meta_keys = $this->meta_keys_to_map;
+		}
 		$extras[$this->extras_id] = array(
-			'meta_keys' => $this->meta_keys_to_map, // The keys we're mapping
+			'meta_keys' => $meta_keys, // The keys we're mapping (or were mapped)
 			'mapped_posts' => $this->added_posts, // All posts which have been added to the batch by this plugin
 			'batch_posts' => $this->batch_posts, // All posts being sent in the batch
 			'name' => __('Meta Mappings', 'ramp-meta'),
-			'description' => sprintf(__('Key mappings: %s', 'ramp-meta'), $this->meta_to_markup()),
-			'__message__' => sprintf(__('Keys to be remapped: %s', 'ramp-meta'), $this->meta_to_markup()),
+			'description' => sprintf(__('Key mappings: %s', 'ramp-meta'), $this->meta_to_markup($meta_keys)),
+			'__message__' => sprintf(__('Keys to be remapped: %s', 'ramp-meta'), $this->meta_to_markup($meta_keys)),
 		);
 		return $extras;
+	}
+
+	function get_deploy_extras($extras, $type) {
+		return $this->get_extras($extras, $type);
+	}
+
+	function get_extras_filter($extras) {
+		return $this->get_extras($extras, 'default');
 	}
 
 	/** 
@@ -393,7 +407,7 @@ class RAMP_Meta_Mappings {
 	 **/ 
 	function do_batch_extra_send($extra, $id) {
 		if ($id == $this->extras_id) {
-			$extras = $this->get_extras(array());
+			$extras = $this->get_extras(array(), 'default');
 			$extra = $extras[$this->extras_id];
 		}
 		return $extra;
@@ -439,6 +453,7 @@ class RAMP_Meta_Mappings {
 		$batch_id = $args['batch_id'];
 		$batch = new cfd_batch(array('ID' => intval($batch_id)));
 
+		// Save this data for the history view without modifying RAMP data
 		$this->pre_get_deploy_data($batch);
 		$history_data = array(
 			'meta_keys' => $this->meta_keys_to_map,
@@ -449,8 +464,14 @@ class RAMP_Meta_Mappings {
 		$this->delete_comparison_data($batch_id);
 	}
 
+	/**
+	 * Runs on client
+	 *
+	 * Displays history data when viewing a batch history
+	 * Includes posts added to the batch by the plugin
+	 **/
 	function history_data($data, $batch_id) {
-		$rm_data = get_post_meta($batch_id, '_ramp_meta_history_data', true);
+		$rm_data = get_post_meta($batch_id, $this->history_key, true);
 		foreach ((array) $rm_data['posts'] as $post_id => $post_data) {
 			$post_type = $post_data['post_type'];
 			if (!in_array($post_data['guid'], (array)$data['post_types'][$post_type])) {
