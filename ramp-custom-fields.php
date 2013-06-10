@@ -25,22 +25,22 @@ Author URI: http://crowdfavorite.com
  * Server messages should return appropriately for extras w/o messages in the data. May be a RAMP issue.
  **/
 
-load_plugin_textdomain('ramp-meta');
+load_plugin_textdomain('ramp-mm');
 
-function ramp_meta_keys() {
-	return (array) get_option('ramp_meta_keys');
+function ramp_mm_keys() {
+	return (array) get_option('ramp_mm_keys');
 }
 
-function ramp_meta_init() {
-	register_setting('cf-deploy-settings', 'ramp_meta_keys', 'ramp_meta_validate');
-	foreach (ramp_meta_keys() as $key) {
+function ramp_mm_init() {
+	register_setting('cf-deploy-settings', 'ramp_mm_keys', 'ramp_mm_validate');
+	foreach (ramp_mm_keys() as $key) {
 		cfr_register_metadata($key);
 	}
 }
-add_action('admin_init', 'ramp_meta_init');
+add_action('admin_init', 'ramp_mm_init');
 
-function ramp_meta_validate($settings) {
-	$excluded_keys = ramp_meta_excluded_keys();
+function ramp_mm_validate($settings) {
+	$excluded_keys = ramp_mm_excluded_keys();
 	foreach ($settings as $key => $setting) {
 		if (in_array($setting, $excluded_keys)) {
 			unset($settings[$key]);
@@ -49,9 +49,9 @@ function ramp_meta_validate($settings) {
 	return $settings;
 }
 
-function ramp_meta_excluded_keys() {
+function ramp_mm_excluded_keys() {
 	return apply_filters(
-		'ramp_meta_excluded_keys',
+		'ramp_mm_excluded_keys',
 		array(
 			'_cfct_build_data',
 			'_edit_last',
@@ -76,7 +76,7 @@ function ramp_meta_excluded_keys() {
 			'_batch_send_user',
 			'_batch_session_token',
 			'_preflight_data',
-			'_ramp_meta_comp_data',
+			'_ramp_mm_comp_data',
 			'_batch_import_complete',
 			'_batch_id',
 			'_batch_import_messages',
@@ -85,11 +85,11 @@ function ramp_meta_excluded_keys() {
 	);
 }
 
-function ramp_meta_admin_form($obj) {
+function ramp_mm_admin_form($obj) {
 	$options = '';
-	$keys = array_diff(ramp_meta_available_keys(), ramp_meta_excluded_keys());
+	$keys = array_diff(ramp_mm_available_keys(), ramp_mm_excluded_keys());
 	$count = count($keys);
-	$selected = ramp_meta_keys();
+	$selected = ramp_mm_keys();
 	if ($count) {
 		$i = 0;
 		foreach ($keys as $key) {
@@ -99,18 +99,18 @@ function ramp_meta_admin_form($obj) {
 				}
 			}
 			$i++;
-			$id = 'ramp_meta_keys-'.$key;
+			$id = 'ramp_mm_keys-'.$key;
 			$checked = (in_array($key, $selected) ? ' checked="checked"' : '');
 			$options .= '
 		<li>
-			<input type="checkbox" name="ramp_meta_keys[]" value="'.esc_attr($key).'" id="'.esc_attr($id).'"'.$checked.' />
+			<input type="checkbox" name="ramp_mm_keys[]" value="'.esc_attr($key).'" id="'.esc_attr($id).'"'.$checked.' />
 			<label for="'.esc_attr($id).'">'.esc_html($key).'</label>
 		</li>
 			';
 		}
 ?>
 <style>
-#ramp-meta-keys ul {
+#ramp-mm-keys ul {
 	float: left;
 	width: 33%;
 }
@@ -118,13 +118,13 @@ function ramp_meta_admin_form($obj) {
 <?php
 	}
 	else {
-		$options = '<li>'.__('No custom fields found.', 'ramp-meta').'</li>';
+		$options = '<li>'.__('No custom fields found.', 'ramp-mm').'</li>';
 	}
 ?>
-<div class="form-section" id="ramp-meta-keys">
+<div class="form-section" id="ramp-mm-keys">
 	<fieldset>
-		<legend><?php _e('Custom Fields', 'ramp-meta'); ?></legend>
-		<p class="cf-elm-help"><?php _e('Select any custom fields that represent a post id to be translated when a batch is sent.', 'ramp-meta'); ?></p>
+		<legend><?php _e('Custom Fields', 'ramp-mm'); ?></legend>
+		<p class="cf-elm-help"><?php _e('Select any custom fields that represent a post id to be translated when a batch is sent.', 'ramp-mm'); ?></p>
 		<div class="cf-elm-block cf-elm-width-full">
 <?php
 	echo '<ul>'.$options.'</ul>';
@@ -135,9 +135,9 @@ function ramp_meta_admin_form($obj) {
 </div>
 <?php
 }
-add_action('cf_deploy_admin_form', 'ramp_meta_admin_form');
+add_action('cf_deploy_admin_form', 'ramp_mm_admin_form');
 
-function ramp_meta_available_keys() {
+function ramp_mm_available_keys() {
 	global $wpdb;
 	return $wpdb->get_col("
 		SELECT DISTINCT meta_key
@@ -146,11 +146,11 @@ function ramp_meta_available_keys() {
 	");
 }
 
-function ramp_meta_cfd_init() {
+function ramp_mm_cfd_init() {
 	$ramp_meta = RAMP_Meta_Mappings::factory();
 	$ramp_meta->add_actions();
 }
-add_action('cfd_admin_init', 'ramp_meta_cfd_init');
+add_action('cfd_admin_init', 'ramp_mm_cfd_init');
 
 class RAMP_Meta_Mappings {
 	var $existing_ids = array(); // Ids already processed or in the batch
@@ -159,8 +159,8 @@ class RAMP_Meta_Mappings {
 	var $data = array();
 	var $client_server_post_mappings = array(); // Store the client id => server id mapping
 	var $comparison_data = array();
-	var $comparison_key = '_ramp_meta_comp_data';
-	var $history_key = '_ramp_meta_history_data';
+	var $comparison_key = '_ramp_mm_comp_data';
+	var $history_key = '_ramp_mm_history_data';
 	var $name = 'RAMP Meta Mappings';
 
 	static $instance;
@@ -174,8 +174,8 @@ class RAMP_Meta_Mappings {
 	}
 
 	function __construct() {
-		$this->meta_keys_to_map = ramp_meta_keys();
-		$this->extras_id = cfd_make_callback_id('ramp_meta_keys');
+		$this->meta_keys_to_map = ramp_mm_keys();
+		$this->extras_id = cfd_make_callback_id('ramp_mm_keys');
 	}
 
 	function add_actions() {
@@ -386,9 +386,9 @@ class RAMP_Meta_Mappings {
 			'meta_keys' => $meta_keys, // The keys we're mapping (or were mapped)
 			'mapped_posts' => $this->added_posts, // All posts which have been added to the batch by this plugin
 			'batch_posts' => $this->batch_posts, // All posts being sent in the batch
-			'name' => __('Meta Mappings', 'ramp-meta'),
-			'description' => sprintf(__('Key mappings: %s', 'ramp-meta'), $this->meta_to_markup($meta_keys)),
-			'__message__' => sprintf(__('Keys to be remapped: %s', 'ramp-meta'), $this->meta_to_markup($meta_keys)),
+			'name' => __('Meta Mappings', 'ramp-mm'),
+			'description' => sprintf(__('Key mappings: %s', 'ramp-mm'), $this->meta_to_markup($meta_keys)),
+			'__message__' => sprintf(__('Keys to be remapped: %s', 'ramp-mm'), $this->meta_to_markup($meta_keys)),
 		);
 		return $extras;
 	}
@@ -449,7 +449,6 @@ class RAMP_Meta_Mappings {
 	 * Cleanup meta that was saved to the batch post
 	 **/ 
 	function close_batch_send($args) {
-		//error_log(print_r($args,1));
 		$batch_id = $args['batch_id'];
 		$batch = new cfd_batch(array('ID' => intval($batch_id)));
 
@@ -472,16 +471,18 @@ class RAMP_Meta_Mappings {
 	 **/
 	function history_data($data, $batch_id) {
 		$rm_data = get_post_meta($batch_id, $this->history_key, true);
-		foreach ((array) $rm_data['posts'] as $post_id => $post_data) {
-			$post_type = $post_data['post_type'];
-			if (!in_array($post_data['guid'], (array)$data['post_types'][$post_type])) {
-				$data['post_types'][$post_type][$post_data['guid']] = array(
-					'post' => array(
-						'ID' => $post_id,
-						'post_title' => $post_data['post_title'],
-						'post_type' => $post_data['post_type'],
-					),
-				);
+		if (is_array($rm_data)) {
+			foreach ($rm_data['posts'] as $post_id => $post_data) {
+				$post_type = $post_data['post_type'];
+				if (!in_array($post_data['guid'], (array)$data['post_types'][$post_type])) {
+					$data['post_types'][$post_type][$post_data['guid']] = array(
+						'post' => array(
+							'ID' => $post_id,
+							'post_title' => $post_data['post_title'],
+							'post_type' => $post_data['post_type'],
+						),
+					);
+				}
 			}
 		}
 		
@@ -541,7 +542,7 @@ class RAMP_Meta_Mappings {
 
 			// Show notice that this post was not originally in the batch, but added by RAMP Meta
 			if (in_array($post['post']['ID'], array_keys($meta_added))) {
-				$ret['__notice__'][] =  __('This post was added by the RAMP Meta Plugin.', 'ramp-meta');
+				$ret['__notice__'][] =  __('This post was added by the RAMP Meta Plugin.', 'ramp-mm');
 			}
 
 			// Show notice on post of what items the meta maps to
@@ -553,10 +554,10 @@ class RAMP_Meta_Mappings {
 
 						// Need to ensure that the post is still there, throw an error if its not
 						if (isset($batch_items['post_types'][$post_type][$guid])) {
-							$ret['__notice__'][] =  sprintf(__('%s "%s" was found mapped in the post meta and has been added to the batch.', 'ramp-meta'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+							$ret['__notice__'][] =  sprintf(__('%s "%s" was found mapped in the post meta and has been added to the batch.', 'ramp-mm'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
 						}
 						else {
-							$ret['__error__'][] =  sprintf(__('%s "%s" was mapped by the RAMP Meta plugin but not found in the batch.', 'ramp-meta'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+							$ret['__error__'][] =  sprintf(__('%s "%s" was mapped by the RAMP Meta plugin but not found in the batch.', 'ramp-mm'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
 						}
 					} 
 				}
