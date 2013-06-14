@@ -9,7 +9,7 @@ Author URI: http://crowdfavorite.com
 */
 
 /*
- * Copyright (c) 2012 Crowd Favorite, Ltd. All rights reserved.
+ * Copyright (c) 2012-2013 Crowd Favorite, Ltd. All rights reserved.
  * http://crowdfavorite.com
  *
  * **********************************************************************
@@ -56,6 +56,13 @@ function ramp_mm_excluded_keys() {
 			'_cfct_build_data',
 			'_edit_last',
 			'_edit_lock',
+			'_format_audio_embed',
+			'_format_image',
+			'_format_link_url',
+			'_format_quote_source_name',
+			'_format_quote_source_url',
+			'_format_url',
+			'_format_video_embed',
 			'_menu_item_classes',
 			'_menu_item_menu_item_parent',
 			'_menu_item_object',
@@ -73,14 +80,14 @@ function ramp_mm_excluded_keys() {
 			'_batch_destination',
 			'_batch_export_complete',
 			'_batch_export_failed',
-			'_batch_send_user',
-			'_batch_session_token',
-			'_preflight_data',
-			'_ramp_mm_comp_data',
 			'_batch_import_complete',
 			'_batch_id',
 			'_batch_import_messages',
+			'_batch_send_user',
+			'_batch_session_token',
 			'_batch_source',
+			'_preflight_data',
+			'_ramp_mm_comp_data',
 		)
 	);
 }
