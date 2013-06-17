@@ -19,12 +19,6 @@ Author URI: http://crowdfavorite.com
  * **********************************************************************
  */
 
-/**
- * TODOs:
- * Batch history should show accurately what was sent
- * Server messages should return appropriately for extras w/o messages in the data. May be a RAMP issue.
- **/
-
 load_plugin_textdomain('ramp-mm');
 
 function ramp_mm_keys() {
