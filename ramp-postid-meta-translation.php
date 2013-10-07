@@ -440,7 +440,12 @@ class RAMP_Meta_Mappings {
 			}
 		}
 		// So the server knows which ones are added, also for display
-		$this->data['extras'] = $this->get_extras($this->data['extras']);
+		if (isset($this->data['extras'])) {
+			$this->data['extras'] = $this->get_extras($this->data['extras']);
+		}
+		else {
+			$this->data['extras'] = array();
+		}
 
 		$batch->data = $this->data;
 	}
