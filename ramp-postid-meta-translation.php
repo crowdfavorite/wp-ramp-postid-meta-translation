@@ -426,7 +426,7 @@ class RAMP_Meta_Mappings {
 		// We get a reference to the object but not arrays
 		$this->data = $batch->data;
 		$existing_ids = array();
-		if (is_array($this->data['post_types'])) {
+		if (isset($this->data['post_types']) && is_array($this->data['post_types'])) {
 			foreach ($this->data['post_types'] as $post_type => $post_ids) {
 				foreach ($post_ids as $post_id) {
 					$this->existing_ids[] = $post_id;
