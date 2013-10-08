@@ -3,7 +3,7 @@
 Plugin Name: RAMP Post ID Meta Translation
 Plugin URI: http://crowdfavorite.com
 Description: Adds the ability to select which post meta fields represent a post mapping and adds them to the batch
-Version: 1.0
+Version: 1.0.1
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com 
 */
@@ -426,7 +426,7 @@ class RAMP_Meta_Mappings {
 		// We get a reference to the object but not arrays
 		$this->data = $batch->data;
 		$existing_ids = array();
-		if (is_array($this->data['post_types'])) {
+		if (isset($this->data['post_types']) && is_array($this->data['post_types'])) {
 			foreach ($this->data['post_types'] as $post_type => $post_ids) {
 				foreach ($post_ids as $post_id) {
 					$this->existing_ids[] = $post_id;
@@ -440,7 +440,12 @@ class RAMP_Meta_Mappings {
 			}
 		}
 		// So the server knows which ones are added, also for display
-		$this->data['extras'] = $this->get_extras($this->data['extras']);
+		if (isset($this->data['extras'])) {
+			$this->data['extras'] = $this->get_extras($this->data['extras']);
+		}
+		else {
+			$this->data['extras'] = array();
+		}
 
 		$batch->data = $this->data;
 	}
