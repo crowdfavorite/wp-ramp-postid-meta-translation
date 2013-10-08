@@ -3,7 +3,7 @@
 Plugin Name: RAMP Post ID Meta Translation
 Plugin URI: http://crowdfavorite.com
 Description: Adds the ability to select which post meta fields represent a post mapping and adds them to the batch
-Version: 1.0.1
+Version: 1.0.2-dev
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com 
 */
