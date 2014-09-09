@@ -21,8 +21,42 @@ Author URI: http://crowdfavorite.com
 
 load_plugin_textdomain('ramp-mm');
 
-function ramp_mm_keys() {
-	return (array) get_option('ramp_mm_keys');
+function ramp_mm_keys( $parse = true ) {
+	$keys = array();
+	$patterns = get_option( 'ramp_mm_keys', array() );
+	if ( ! $parse ) {
+		return $patterns;
+	}
+	if ( ! is_array( $patterns ) ) {
+		$patterns = array();
+	}
+
+	$distinct_keys = ramp_mm_distinct_keys(); // Get keys which are in the database
+	$distinct_keys_string = implode( ',', $distinct_keys );
+
+	foreach ( $patterns as $pattern ) {
+		if ( in_array( $pattern, $distinct_keys ) ) {
+			$keys[] = $pattern;
+			continue;
+		}
+
+		// Need a way to distinguish regex pattern, assume anything starting with / is regex
+		if ( '/' != substr( $pattern, 0, 1 ) ) {
+			// Escape pattern for regexifying, no one should have escapable characters
+			// in their meta_key, but just in case
+			$pattern = preg_quote( $pattern );
+			$pattern = '/' . $pattern . '/';
+		}
+
+		// {%d} and {%s} are accepted as patterns, need to translate to regex
+		$pattern = str_replace( array( '{%d}', '{%s}' ), array( '\d+?', '[^0-9_]+?' ), $pattern );
+		preg_match_all( $pattern, $distinct_keys_string, $matches ) ;
+		if ( is_array( $matches ) && !empty( $matches ) ) {
+			$keys = array_merge( $keys, $matches[0] );
+		}
+	}
+
+	return $keys;
 }
 
 function ramp_mm_init() {
@@ -92,7 +126,7 @@ function ramp_mm_admin_form($obj) {
 	$options = '';
 	$keys = array_diff(ramp_mm_available_keys(), ramp_mm_excluded_keys());
 	$count = count($keys);
-	$selected = ramp_mm_keys();
+	$selected = ramp_mm_keys( false );
 	if ($count) {
 		$i = 0;
 		foreach ($keys as $key) {
@@ -141,12 +175,20 @@ function ramp_mm_admin_form($obj) {
 add_action('cf_deploy_admin_form', 'ramp_mm_admin_form');
 
 function ramp_mm_available_keys() {
+	$keys = ramp_mm_distinct_keys();
+	if ( ! is_array( $keys ) ) {
+		$keys = array();
+	}
+	return apply_filters( 'ramp_mm_available_keys', $keys );
+}
+
+function ramp_mm_distinct_keys() {
 	global $wpdb;
-	return $wpdb->get_col("
+	return $wpdb->get_col( "
 		SELECT DISTINCT meta_key
 		FROM $wpdb->postmeta
 		ORDER BY meta_key
-	");
+	" );
 }
 
 function ramp_mm_cfd_init() {
