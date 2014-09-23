@@ -506,17 +506,20 @@ class RAMP_Meta_Mappings {
 	 * Occurs before sending post difference back to the client
 	 **/
 	function compare($c_data) {
-		$meta_keys_to_map = $c_data['extras'][$this->extras_id]['meta_keys']['status'];
-		foreach ($c_data['post_types'] as $post_type => $posts) {
-			foreach ($posts as $post_guid => $post_data) {
-				$post_meta = $post_data['profile']['meta'];
-				if (is_array($post_meta)) {
-					foreach ($post_meta as $meta_key => $meta_value) {
-						if (in_array($meta_key, $meta_keys_to_map) && is_numeric($meta_value)) {
-							// Get guid and set it as that!
-							$guid = cfd_get_post_guid($meta_value);
-							if ($guid) {
-								$c_data['post_types'][$post_type][$post_guid]['profile']['meta'][$meta_key] = $guid;
+		$meta_keys_to_map = $c_data['extras'][ $this->extras_id ]['meta_keys']['status'];
+		foreach ( $c_data['post_types'] as $post_type => $posts ) {
+			foreach ( $posts as $post_guid => $post_data ) {
+				// Make sure that the return data is what we want and not something else like an error
+				if ( isset( $post_data['profile']['meta'] ) ) {
+					$post_meta = $post_data['profile']['meta'];
+					if ( is_array( $post_meta ) ) {
+						foreach ( $post_meta as $meta_key => $meta_value ) {
+							if ( in_array( $meta_key, $meta_keys_to_map ) && is_numeric( $meta_value ) ) {
+								// Get guid and set it as that!
+								$guid = cfd_get_post_guid( $meta_value );
+								if ( $guid ) {
+									$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $guid;
+								}
 							}
 						}
 					}
