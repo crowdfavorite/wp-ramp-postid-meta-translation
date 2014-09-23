@@ -3,9 +3,9 @@
 Plugin Name: RAMP Post ID Meta Translation
 Plugin URI: http://crowdfavorite.com
 Description: Adds the ability to select which post meta fields represent a post mapping and adds them to the batch
-Version: 1.0.1
+Version: 1.0.2
 Author: Crowd Favorite
-Author URI: http://crowdfavorite.com 
+Author URI: http://crowdfavorite.com
 */
 
 /*
@@ -15,7 +15,7 @@ Author URI: http://crowdfavorite.com
  * **********************************************************************
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * **********************************************************************
  */
 
@@ -168,7 +168,7 @@ class RAMP_Meta_Mappings {
 
 	static $instance;
 
-	// Singleton 
+	// Singleton
 	public function factory() {
 		if (!isset(self::$instance)) {
 			self::$instance = new RAMP_Meta_Mappings;
@@ -193,7 +193,7 @@ class RAMP_Meta_Mappings {
 		// Modifies the object that the client gets locally to compare with the server post
 		add_filter('ramp_get_comparison_data_post', array($this, 'get_comparison_data_post'));
 
-		// Modified the meta just before sending it to the server 
+		// Modified the meta just before sending it to the server
 		add_filter('ramp_get_deploy_object', array($this, 'get_deploy_object'), 10, 2);
 
 		// Extras handling
@@ -234,7 +234,7 @@ class RAMP_Meta_Mappings {
 		$admin_deploy->batch->init_comparison_data();
 		$admin_deploy->batch->add_extras_comparison_data($admin_deploy->get_comparison_extras());
 		$admin_deploy->do_server_comparison($admin_deploy->batch);
-		
+
 		// Now the batch has populated c_data
 		$data = $admin_deploy->batch->get_comparison_data('post_types');
 
@@ -253,16 +253,16 @@ class RAMP_Meta_Mappings {
 		update_post_meta($batch_id, $this->comparison_key, $post_guids);
 	}
 
-	/** 
+	/**
 	 * Loads comparison data that happened on preflight
-	 **/ 
+	 **/
 	function load_comparison_data($batch_id) {
 		$this->comparison_data = (array) get_post_meta($batch_id, $this->comparison_key, true);
 	}
 
 	/**
 	 * Deletes preflight comparison data
-	 **/ 
+	 **/
 	function delete_comparison_data($batch_id) {
 		delete_post_meta($batch_id, $this->comparison_key);
 		$this->comparison_data = array();
@@ -271,7 +271,7 @@ class RAMP_Meta_Mappings {
 	/**
 	 * Runs on client
 	 * Used for displaying extra row name on preflight
-	 **/ 
+	 **/
 	function extras_preflight_name($name, $extra_id) {
 		if ($extra_id == $this->extras_id) {
 			return $this->name;
@@ -280,8 +280,8 @@ class RAMP_Meta_Mappings {
 	}
 
 	/**
-	 * Runs on client 
-	 * 
+	 * Runs on client
+	 *
 	 * Modifies the post the client grabs to compare with the server post
 	 * Replaces the post's meta mapped keys with the guids
 	 **/
@@ -320,16 +320,16 @@ class RAMP_Meta_Mappings {
 		}
 		return $object;
 	}
-	
+
 	/**
 	 * Runs on client
 	 * Process a post so any of the mapped meta keys also get processed in the batch
-	 * 
+	 *
 	 * @param int $post_id ID of a post to map
 	 * @param bool $add_guid whether or not to add this guid to the set of batch posts. Prevents loading the same posts into memory
 	 **/
 	function process_post($post_id, $add_guid = true) {
-		if ($add_guid) { 
+		if ($add_guid) {
 			$this->batch_posts[] = cfd_get_post_guid($post_id);
 		}
 		$meta = get_metadata('post', $post_id);
@@ -375,7 +375,7 @@ class RAMP_Meta_Mappings {
 	/**
 	 * Runs on the client
 	 * Add extra meta data to pass from client to server
-	 **/ 
+	 **/
 	function get_extras($extras, $type = 'default') {
 		if ($type == 'history') {
 			$batch_id = $_GET['batch'];
@@ -404,10 +404,10 @@ class RAMP_Meta_Mappings {
 		return $this->get_extras($extras, 'default');
 	}
 
-	/** 
+	/**
 	 * Runs on the client
 	 * Add extra data to send data via filter instead of callback
-	 **/ 
+	 **/
 	function do_batch_extra_send($extra, $id) {
 		if ($id == $this->extras_id) {
 			$extras = $this->get_extras(array(), 'default');
@@ -419,7 +419,7 @@ class RAMP_Meta_Mappings {
 	/**
 	 * Runs on the client
 	 * Loads additional posts into the deploy data based on meta values
-	 * 
+	 *
 	 **/
 	function pre_get_deploy_data($batch) {
 		$this->load_comparison_data($batch->ID);
@@ -455,7 +455,7 @@ class RAMP_Meta_Mappings {
 	 * Runs on Client after sending a batch
 	 * Store history data
 	 * Cleanup meta that was saved to the batch post
-	 **/ 
+	 **/
 	function close_batch_send($args) {
 		$batch_id = $args['batch_id'];
 		$batch = new cfd_batch(array('ID' => intval($batch_id)));
@@ -493,7 +493,7 @@ class RAMP_Meta_Mappings {
 				}
 			}
 		}
-		
+
 		return $data;
 	}
 
@@ -506,17 +506,20 @@ class RAMP_Meta_Mappings {
 	 * Occurs before sending post difference back to the client
 	 **/
 	function compare($c_data) {
-		$meta_keys_to_map = $c_data['extras'][$this->extras_id]['meta_keys']['status'];
-		foreach ($c_data['post_types'] as $post_type => $posts) {
-			foreach ($posts as $post_guid => $post_data) {
-				$post_meta = $post_data['profile']['meta'];
-				if (is_array($post_meta)) {
-					foreach ($post_meta as $meta_key => $meta_value) {
-						if (in_array($meta_key, $meta_keys_to_map) && is_numeric($meta_value)) {
-							// Get guid and set it as that!
-							$guid = cfd_get_post_guid($meta_value);
-							if ($guid) {
-								$c_data['post_types'][$post_type][$post_guid]['profile']['meta'][$meta_key] = $guid;
+		$meta_keys_to_map = $c_data['extras'][ $this->extras_id ]['meta_keys']['status'];
+		foreach ( $c_data['post_types'] as $post_type => $posts ) {
+			foreach ( $posts as $post_guid => $post_data ) {
+				// Make sure that the return data is what we want and not something else like an error
+				if ( isset( $post_data['profile']['meta'] ) ) {
+					$post_meta = $post_data['profile']['meta'];
+					if ( is_array( $post_meta ) ) {
+						foreach ( $post_meta as $meta_key => $meta_value ) {
+							if ( in_array( $meta_key, $meta_keys_to_map ) && is_numeric( $meta_value ) ) {
+								// Get guid and set it as that!
+								$guid = cfd_get_post_guid( $meta_value );
+								if ( $guid ) {
+									$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $guid;
+								}
 							}
 						}
 					}
@@ -538,11 +541,11 @@ class RAMP_Meta_Mappings {
 		}
 		return $ret;
 	}
-	
+
 	/**
 	 * Runs on server
 	 * Processes data throws notices for RAMP Meta added items
-	 **/ 
+	 **/
 	function preflight_post($ret, $post, $batch_items) {
 		if (!empty($batch_items['extras'][$this->extras_id]['mapped_posts'])) {
 			$meta_added = $batch_items['extras'][$this->extras_id]['mapped_posts'];
@@ -567,7 +570,7 @@ class RAMP_Meta_Mappings {
 						else {
 							$ret['__error__'][] =  sprintf(__('%s "%s" was mapped by the RAMP Meta plugin but not found in the batch.', 'ramp-mm'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
 						}
-					} 
+					}
 				}
 			}
 		}
@@ -581,7 +584,7 @@ class RAMP_Meta_Mappings {
 	 * Recieves a list of meta_keys that need to be remapped (they are currently set as guids)
 	 *
 	 * This is always run last in the batch send process
-	 **/ 
+	 **/
 	function do_batch_extra_receive($extra_data, $extra_id, $batch_args) {
 		if ($extra_id == $this->extras_id) {
 
