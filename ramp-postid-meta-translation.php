@@ -3,7 +3,7 @@
 Plugin Name: RAMP Post ID Meta Translation
 Plugin URI: http://crowdfavorite.com
 Description: Adds the ability to select which post meta fields represent a post mapping and adds them to the batch
-Version: 1.0.2
+Version: 1.1.0
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com
 */
@@ -32,7 +32,6 @@ function ramp_mm_keys( $parse = true ) {
 	}
 
 	$distinct_keys = ramp_mm_distinct_keys(); // Get keys which are in the database
-	$distinct_keys_string = implode( ',', $distinct_keys );
 
 	foreach ( $patterns as $pattern ) {
 		if ( in_array( $pattern, $distinct_keys ) ) {
@@ -50,13 +49,17 @@ function ramp_mm_keys( $parse = true ) {
 
 		// {%d} and {%s} are accepted as patterns, need to translate to regex
 		$pattern = str_replace( array( '{%d}', '{%s}' ), array( '\d+?', '[^0-9_]+?' ), $pattern );
-		preg_match_all( $pattern, $distinct_keys_string, $matches ) ;
-		if ( is_array( $matches ) && !empty( $matches ) ) {
-			$keys = array_merge( $keys, $matches[0] );
+
+		foreach ( $distinct_keys as $keyval ) {
+			preg_match_all( $pattern, $keyval, $matches );
+			if ( is_array( $matches ) && !empty( $matches ) ) {
+				$keys = array_merge( $keys, $matches[0] );
+			}
 		}
+
 	}
 
-	return $keys;
+	return array_unique( $keys );
 }
 
 function ramp_mm_init() {
