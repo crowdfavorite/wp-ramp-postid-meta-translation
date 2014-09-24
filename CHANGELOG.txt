@@ -1,5 +1,9 @@
 # ramp-postid-meta-translation
 
+## 1.1.0
+
+- Add support for wildcard or regex meta keys, these must be filtered in via
+
 ## 1.0.2
 
 - Fixed issue which threw PHP errors when a batch comparison failed
