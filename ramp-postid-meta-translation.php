@@ -44,11 +44,10 @@ function ramp_mm_keys( $parse = true ) {
 			// Escape pattern for regexifying, no one should have escapable characters
 			// in their meta_key, but just in case
 			$pattern = preg_quote( $pattern );
+			// Wildcards are now escaped hence the \{ and \}
+			$pattern = str_replace( array( '\{%d\}', '\{%s\}' ), array( '\d+?', '[^0-9_]+?' ), $pattern );
 			$pattern = '/' . $pattern . '/';
 		}
-
-		// {%d} and {%s} are accepted as patterns, need to translate to regex
-		$pattern = str_replace( array( '{%d}', '{%s}' ), array( '\d+?', '[^0-9_]+?' ), $pattern );
 
 		foreach ( $distinct_keys as $keyval ) {
 			preg_match_all( $pattern, $keyval, $matches );
