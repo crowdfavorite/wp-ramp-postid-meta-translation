@@ -2,7 +2,7 @@
 
 ## 1.1.0
 
-- Add support for wildcard or regex meta keys, these must be filtered in via
+- Add support for wildcard or regex meta keys, these must be filtered in via `ramp_mm_available_keys`
 
 ## 1.0.2
 
