@@ -45,7 +45,7 @@ function ramp_mm_keys( $parse = true ) {
 			// in their meta_key, but just in case
 			$pattern = preg_quote( $pattern );
 			// Wildcards are now escaped hence the \{ and \}
-			$pattern = str_replace( array( '\{%d\}', '\{%s\}' ), array( '\d+?', '[^0-9_]+?' ), $pattern );
+			$pattern = str_replace( array( '\{%d\}', '\{%s\}' ), array( '[0-9]+', '[^0-9_-]+' ), $pattern );
 			$pattern = '/' . $pattern . '/';
 		}
 
