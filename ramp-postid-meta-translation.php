@@ -45,17 +45,21 @@ function ramp_mm_keys( $parse = true ) {
 			// in their meta_key, but just in case
 			$pattern = preg_quote( $pattern );
 			// Wildcards are now escaped hence the \{ and \}
-			$pattern = str_replace( array( '\{%d\}', '\{%s\}' ), array( '[0-9]+', '[^0-9_-]+' ), $pattern );
+			$pattern = str_replace( array( '\{%a\}', '\{%d\}', '\{%s\}' ), array( '[^_-]+', '[0-9]+', '[^0-9_-]+' ), $pattern );
 			$pattern = '/' . $pattern . '/';
 		}
 
 		foreach ( $distinct_keys as $keyval ) {
 			preg_match_all( $pattern, $keyval, $matches );
 			if ( is_array( $matches ) && !empty( $matches ) ) {
-				$keys = array_merge( $keys, $matches[0] );
+				foreach ($matches[0] as $match) {
+					// Ignore partial matches
+					if ( $match == $keyval ) {
+						$keys[] = $match;
+					}
+				}
 			}
 		}
-
 	}
 
 	return array_unique( $keys );
