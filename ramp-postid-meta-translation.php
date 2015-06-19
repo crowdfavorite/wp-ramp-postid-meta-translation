@@ -3,7 +3,7 @@
 Plugin Name: RAMP Post ID Meta Translation
 Plugin URI: http://crowdfavorite.com
 Description: Adds the ability to select which post meta fields represent a post mapping and adds them to the batch
-Version: 1.0.2
+Version: 1.0.3
 Author: Crowd Favorite
 Author URI: http://crowdfavorite.com
 */
@@ -18,6 +18,18 @@ Author URI: http://crowdfavorite.com
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * **********************************************************************
  */
+
+// Deactivate if RAMP not present
+if ( ! function_exists( 'cfd_init' ) ) {
+	add_action( 'admin_init', 'deactivate_ramp_mm_keys' );
+
+	function deactivate_ramp_mm_keys() {
+		deactivate_plugins( plugin_basename( __FILE__ ) );
+		echo  '<div class="error"><p><strong>RAMP Post ID Meta Translation</strong> requires RAMP to be active and has deactivated itself.</p></div>';
+	}
+
+	return;
+}
 
 load_plugin_textdomain('ramp-mm');
 

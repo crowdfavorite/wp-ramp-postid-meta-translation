@@ -13,3 +13,5 @@ Adds the ability to select which custom fields represent a post mapping and adds
 This plugin requires [RAMP](http://crowdfavorite.com/wordpress/ramp/) to function.
 
 Upload it to the plugins directory and activate it through the Plugins menu.
+
+If RAMP is not present or Activated, this plugin will not activate.
