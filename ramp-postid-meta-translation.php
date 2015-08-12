@@ -377,6 +377,7 @@ class RAMP_Meta_Mappings {
 				}
 			}
 		}
+		do_action( 'ramp_after_process_post', $post_id, $this );
 	}
 
 	// Helper for displaying the meta keys
@@ -623,6 +624,7 @@ class RAMP_Meta_Mappings {
 					}
 				}
 			}
+			do_action( 'ramp_after_do_batch_extra_receive', $extra_data, $extra_id, $batch_args, $batch_guids, $mapped_keys );
 		}
 	}
 }
