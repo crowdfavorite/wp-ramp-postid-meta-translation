@@ -660,5 +660,6 @@ class RAMP_Meta_Mappings {
 				}
 			}
 		}
+		return $extra_data;
 	}
 }
