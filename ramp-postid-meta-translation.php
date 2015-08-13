@@ -181,7 +181,7 @@ class RAMP_Meta_Mappings {
 	static $instance;
 
 	// Singleton
-	public function factory() {
+	public static function factory() {
 		if (!isset(self::$instance)) {
 			self::$instance = new RAMP_Meta_Mappings;
 		}
@@ -301,11 +301,22 @@ class RAMP_Meta_Mappings {
 		$post_meta_keys = $post->profile['meta'];
 		if (is_array($post_meta_keys)) {
 			foreach ($post_meta_keys as $meta_key => $meta_value) {
-				if (in_array($meta_key, $this->meta_keys_to_map)) {
-					$guid = cfd_get_post_guid($meta_value);
-					if ($guid) {
-						$post->profile['meta'][$meta_key] = $guid;
+				if ( in_array( $meta_key, $this->meta_keys_to_map ) ) {
+					if ( is_array( $meta_value ) ) {
+						foreach ( $meta_value as $index => $array_post_id ) {
+							$guid = cfd_get_post_guid( $array_post_id );
+							if ( $guid ) {
+								$post->profile['meta'][ $meta_key ][ $index ] = $guid;
+							}
+						}
 					}
+					else {
+						$guid = cfd_get_post_guid( $meta_value );
+						if ( $guid ) {
+							$post->profile['meta'][ $meta_key ] = $guid;
+						}
+					}
+
 				}
 			}
 		}
@@ -321,10 +332,23 @@ class RAMP_Meta_Mappings {
 		if ($object_type == 'post_types') {
 			if (isset($object['meta']) && is_array($object['meta'])) {
 				foreach ($object['meta'] as $meta_key => $meta_value) {
-					if (in_array($meta_key, $this->meta_keys_to_map) && is_numeric($meta_value)) {
-						$guid = cfd_get_post_guid($meta_value);
-						if ($guid) {
-							$object['meta'][$meta_key] = $guid;
+					if ( in_array( $meta_key, $this->meta_keys_to_map ) ) {
+						$meta_value = maybe_unserialize( $meta_value );
+						if ( is_array( $meta_value ) ) {
+							foreach ( $meta_value as $index => $array_post_id ) {
+								if ( is_numeric( $array_post_id ) ) {
+									$guid = cfd_get_post_guid($array_post_id);
+									if ( $guid ) {
+										$object['meta'][ $meta_key ][ $index ] = $guid;
+									}
+								}
+							}
+						}
+						else if ( is_numeric( $meta_value ) ) {
+							$guid = cfd_get_post_guid( $meta_value );
+							if ( $guid ) {
+								$object['meta'][ $meta_key ] = $guid;
+							}
 						}
 					}
 				}
@@ -340,37 +364,27 @@ class RAMP_Meta_Mappings {
 	 * @param int $post_id ID of a post to map
 	 * @param bool $add_guid whether or not to add this guid to the set of batch posts. Prevents loading the same posts into memory
 	 **/
-	function process_post($post_id, $add_guid = true) {
-		if ($add_guid) {
-			$this->batch_posts[] = cfd_get_post_guid($post_id);
+	function process_post( $post_id, $add_guid = true ) {
+		if ( $add_guid ) {
+			$this->batch_posts[] = cfd_get_post_guid( $post_id );
 		}
-		$meta = get_metadata('post', $post_id);
-		if (is_array($meta)) {
-			foreach ($meta as $meta_key => $meta_values) {
+		$meta = get_metadata( 'post', $post_id );
+		if (is_array( $meta ) ) {
+			foreach ( $meta as $meta_key => $meta_values ) {
 				// $meta_values should always be an array
-				if (is_array($meta_values)) {
-					foreach ($meta_values as $meta_value) {
-						if (in_array($meta_key, $this->meta_keys_to_map) && (int)$meta_value > 0) {
-							// Check existance
-							$new_post = get_post($meta_value);
-							if (
-								$new_post // Post exists check
-								&& !in_array($new_post->ID, $this->existing_ids) // Post isnt already in the batch
-								&& in_array($new_post->guid, $this->comparison_data)// Post is modified
-							) {
-								if (!is_array($this->data['post_types'][$new_post->post_type])) {
-									$this->data['post_types'][$new_post->post_type] = array();
+				if ( is_array( $meta_values ) ) {
+					foreach ( $meta_values as $meta_value ) {
+						$meta_value = maybe_unserialize( $meta_value );
+						if ( in_array( $meta_key, $this->meta_keys_to_map ) && (int) $meta_value > 0 ) {
+							if ( is_array( $meta_value ) ) {
+								foreach ( $meta_value as $array_post_id ) {
+									if ( (int) $array_post_id > 0 ) {
+										$this->_process_post( $array_post_id );
+									}
 								}
-								$this->data['post_types'][$new_post->post_type][] = $new_post->ID;
-								$this->existing_ids[] = $new_post->ID;
-								// Use for processes and notices
-								$this->added_posts[$new_post->ID] = array(
-														'post_title' => $new_post->post_title,
-														'post_type' => $new_post->post_type,
-														'guid' => $new_post->guid
-													);
-								$this->batch_posts[] = $new_post->guid;
-								$this->process_post($new_post->ID, false);
+							}
+							else {
+								$this->_process_post( $meta_value );
 							}
 						}
 					}
@@ -378,6 +392,30 @@ class RAMP_Meta_Mappings {
 			}
 		}
 		do_action( 'ramp_after_process_post', $post_id, $this );
+	}
+
+	// Helper for processing posts
+	function _process_post( $post_id ) {
+		$new_post = get_post( $post_id );
+		if (
+			$new_post // Post exists check
+			&& ! in_array( $new_post->ID, $this->existing_ids ) // Post isnt already in the batch
+			&& in_array( $new_post->guid, $this->comparison_data )// Post is modified
+		) {
+			if ( ! is_array($this->data['post_types'][ $new_post->post_type ] ) ) {
+				$this->data['post_types'][ $new_post->post_type ] = array();
+			}
+			$this->data['post_types'][ $new_post->post_type ][] = $new_post->ID;
+			$this->existing_ids[] = $new_post->ID;
+			// Use for processes and notices
+			$this->added_posts[ $new_post->ID ] = array(
+										'post_title' => $new_post->post_title,
+										'post_type' => $new_post->post_type,
+										'guid' => $new_post->guid
+									);
+			$this->batch_posts[] = $new_post->guid;
+			$this->process_post( $new_post->ID, false );
+		}
 	}
 
 	// Helper for displaying the meta keys
@@ -527,11 +565,27 @@ class RAMP_Meta_Mappings {
 					$post_meta = $post_data['profile']['meta'];
 					if ( is_array( $post_meta ) ) {
 						foreach ( $post_meta as $meta_key => $meta_value ) {
-							if ( in_array( $meta_key, $meta_keys_to_map ) && is_numeric( $meta_value ) ) {
-								// Get guid and set it as that!
-								$guid = cfd_get_post_guid( $meta_value );
-								if ( $guid ) {
-									$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $guid;
+							if ( in_array( $meta_key, $meta_keys_to_map ) ) {
+								if ( is_numeric( $meta_value ) ) {
+									// Get guid and set it as that!
+									$guid = cfd_get_post_guid( $meta_value );
+									if ( $guid ) {
+										$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $guid;
+									}
+								}
+								// Process arrays of keys
+								else if ( is_array( $meta_value ) ) {
+									$storage_array = array();
+									foreach ($meta_value as $array_post_id ) {
+										$guid = cfd_get_post_guid( $array_post_id );
+										if ( $guid ) {
+											$storage_array[] = $guid;
+										}
+										else {
+											$storage_array[] = $array_post_id;
+										}
+									}
+									$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $storage_array;
 								}
 							}
 						}
@@ -570,18 +624,21 @@ class RAMP_Meta_Mappings {
 			}
 
 			// Show notice on post of what items the meta maps to
-			if (isset($post['meta']) && is_array($post['meta'])) {
+			if ( isset($post['meta']) && is_array($post['meta'] ) ) {
 				foreach ($post['meta'] as $meta_key => $meta_value) {
-					if (in_array($meta_value, array_keys($meta_added)) && in_array($meta_key, $mapped_keys)) {
-						$guid = $meta_added[$meta_value]['guid'];
-						$post_type = $meta_added[$meta_value]['post_type'];
-
-						// Need to ensure that the post is still there, throw an error if its not
-						if (isset($batch_items['post_types'][$post_type][$guid])) {
-							$ret['__notice__'][] =  sprintf(__('%s "%s" was found mapped in the post meta and has been added to the batch.', 'ramp-mm'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+					$meta_value = maybe_unserialize( $meta_value );
+					if ( is_array( $meta_value ) ) {
+						foreach ( $meta_value as $array_post_id ) {
+							$return_data = $this->_preflight_post( $array_post_id, $meta_added, $meta_key, $mapped_keys, $batch_items );
+							if ( isset( $return_data['type'] ) ) {
+								$ret[ $return_data['type'] ][] = $return_data['msg'];
+							}
 						}
-						else {
-							$ret['__error__'][] =  sprintf(__('%s "%s" was mapped by the RAMP Meta plugin but not found in the batch.', 'ramp-mm'), $meta_added[$meta_value]['post_type'], $meta_added[$meta_value]['post_title']);
+					}
+					else {
+						$return_data = $this->_preflight_post( $meta_value, $meta_added, $meta_key, $mapped_keys, $batch_items );
+						if ( isset( $return_data['type'] ) ) {
+							$ret[ $return_data['type'] ][] = $return_data['msg'];
 						}
 					}
 				}
@@ -589,6 +646,25 @@ class RAMP_Meta_Mappings {
 		}
 
 		return $ret;
+	}
+
+	function _preflight_post( $post_id, $meta_added, $meta_key, $mapped_keys, $batch_items) {
+		$return = array();
+		if ( in_array($post_id, array_keys( $meta_added ) ) && in_array( $meta_key, $mapped_keys ) ) {
+			$guid = $meta_added[$post_id]['guid'];
+			$post_type = $meta_added[$post_id]['post_type'];
+			// Need to ensure that the post is still there, throw an error if its not
+			if ( isset($batch_items['post_types'][$post_type][$guid] ) ) {
+				$return['msg'] = sprintf(__('%s "%s" was found mapped in the post meta and has been added to the batch.', 'ramp-mm'), $meta_added[$post_id]['post_type'], $meta_added[$post_id]['post_title']);
+				$return['type'] = '__notice__';
+			}
+			else {
+				$return['msg'] = sprintf(__('%s "%s" was mapped by the RAMP Meta plugin but not found in the batch.', 'ramp-mm'), $meta_added[$post_id]['post_type'], $meta_added[$post_id]['post_title']);
+				$return['type'] = '__error__';
+			}
+		}
+
+		return $return;
 	}
 
 	/**
@@ -599,24 +675,46 @@ class RAMP_Meta_Mappings {
 	 * This is always run last in the batch send process
 	 **/
 	function do_batch_extra_receive($extra_data, $extra_id, $batch_args) {
-		if ($extra_id == $this->extras_id) {
+		if ( $extra_id == $this->extras_id ) {
 
 			$batch_guids = (array) array_unique($batch_args['batch_posts']);
 			$mapped_keys = $batch_args['meta_keys'];
 
 			// Loop through list of guids sent in the batch
-			foreach ($batch_guids as $guid) {
-				$server_post = cfd_get_post_by_guid($guid);
-				if ($server_post) {
-					$meta = get_metadata('post', $server_post->ID);
-					if (is_array($meta)) {
+			foreach ( $batch_guids as $guid ) {
+				$server_post = cfd_get_post_by_guid( $guid );
+				if ( $server_post ) {
+					$meta = get_metadata( 'post', $server_post->ID );
+					if ( is_array( $meta ) ) {
 						// Loop through server post meta checking meta keys that should be mapped
-						foreach ($meta as $meta_key => $meta_values) {
-							foreach ($meta_values as $meta_value) {
-								if (in_array($meta_key, $mapped_keys) && !is_numeric($meta_value)) {
-									$mapped_server_post = cfd_get_post_by_guid($meta_value);
-									if ($mapped_server_post) {
-										update_post_meta($server_post->ID, $meta_key, $mapped_server_post->ID, $meta_value);
+						foreach ( $meta as $meta_key => $meta_values ) {
+							foreach ( $meta_values as $meta_value ) {
+								$meta_value = maybe_unserialize( $meta_value );
+								// ! is_numeric as this should come in via a guid
+								if ( in_array( $meta_key, $mapped_keys ) && ! is_numeric( $meta_value ) ) {
+									if ( is_array( $meta_value ) ) {
+										$storage_array = array();
+										foreach ($meta_value as $array_guid_value ) {
+											if ( ! is_numeric( $array_guid_value ) ) {
+												$mapped_server_post = cfd_get_post_by_guid( $array_guid_value );
+												if ( $mapped_server_post ) {
+													$storage_array[] = $mapped_server_post->ID;
+												}
+												else {
+													$storage_array[] = $array_guid_value;
+												}
+											}
+											else {
+												$storage_array[] = $array_guid_value;
+											}
+										}
+										update_post_meta( $server_post->ID, $meta_key, $storage_array, $meta_value );
+									}
+									else {
+										$mapped_server_post = cfd_get_post_by_guid( $meta_value );
+										if ( $mapped_server_post ) {
+											update_post_meta( $server_post->ID, $meta_key, $mapped_server_post->ID, $meta_value );
+										}
 									}
 								}
 							}
