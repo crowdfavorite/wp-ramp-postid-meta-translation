@@ -55,6 +55,22 @@ function ramp_mm_validate($settings) {
 	return $settings;
 }
 
+function ramp_mm_drilldown_config() {
+	/* Example of config
+	$drilldown = array(
+		'toplevel_meta_key' => array(
+			'index1->index1child1->index1grandchild',
+			'index1->index1child2',
+		),
+		'toplevel_meta_key2' => ...
+  	*/
+	return apply_filters('ramp_mm_drilldown_config', array() );
+}
+
+function ramp_mm_drilldown_keys() {
+	return array_keys( ramp_drilldown_keys() );
+}
+
 function ramp_mm_excluded_keys() {
 	return apply_filters(
 		'ramp_mm_excluded_keys',
@@ -189,8 +205,16 @@ class RAMP_Meta_Mappings {
 	}
 
 	function __construct() {
-		$this->meta_keys_to_map = ramp_mm_keys();
+		$this->meta_keys_to_map = $this->_combine_meta_keys();
+		$this->drilldown_keys = ramp_mm_drilldown_keys();
+		$this->drilldown_config = ramp_mm_drilldown_config();
 		$this->extras_id = cfd_make_callback_id('ramp_mm_keys');
+	}
+
+	function _combine_meta_keys() {
+		$mm_keys = ramp_mm_keys();
+		$drilldown_keys = ramp_mm_drilldown_keys();
+		return array_merge( $mm_keys, $drilldown_keys );
 	}
 
 	function add_actions() {
@@ -335,11 +359,26 @@ class RAMP_Meta_Mappings {
 					if ( in_array( $meta_key, $this->meta_keys_to_map ) ) {
 						$meta_value = maybe_unserialize( $meta_value );
 						if ( is_array( $meta_value ) ) {
-							foreach ( $meta_value as $index => $array_post_id ) {
-								if ( is_numeric( $array_post_id ) ) {
-									$guid = cfd_get_post_guid($array_post_id);
-									if ( $guid ) {
-										$object['meta'][ $meta_key ][ $index ] = $guid;
+							// Drilldown
+							if ( in_array( $meta_key, $this->drilldown_keys ) ) {
+								foreach ( $this->drilldown_config[ $meta_key ] as $drilldown_pattern ) {
+									$drilldown_id = $this->_get_drilldown_value( $meta_value, $drilldown_pattern );
+									if ( is_numeric( $drilldown_id ) ) {
+										$guid = cfd_get_post_guid($drilldown_id);
+										if ( $guid ) {
+											$object['meta'][ $meta_key ] = $this->_set_drilldown_value( $meta_value, $drilldown_pattern, $guid );
+										}
+									}
+								}
+							}
+							// Array keys of post ids
+							else {
+								foreach ( $meta_value as $index => $array_post_id ) {
+									if ( is_numeric( $array_post_id ) ) {
+										$guid = cfd_get_post_guid($array_post_id);
+										if ( $guid ) {
+											$object['meta'][ $meta_key ][ $index ] = $guid;
+										}
 									}
 								}
 							}
@@ -357,6 +396,58 @@ class RAMP_Meta_Mappings {
 		return $object;
 	}
 
+	/**
+	 * Runs on both,
+	 * helper function to get a drilldown value
+	 *
+	 **/
+	function _get_drilldown_value( $meta_value, $drilldown ) {
+		$drilldown_arr = explode( '->', $drilldown );
+		$val = $meta_value;
+		foreach ( $drilldown_arr as $drilldown_index ) {
+			if ( isset( $val[ $drilldown_index ] ) ) {
+				$val = $val[ $drilldown_index ];
+			}
+			// Drilldown isn't actually set, return false
+			else {
+				return false;
+			}
+		}
+
+		return $val;
+	}
+
+	/**
+	 * Runs on both,
+	 * helper function to get a drilldown value
+	 *
+	 * @param $array array, Object to drilldown into and set a value
+	 * @param $drilldown string, Drilldown config string
+	 * @param $value mixed, value to set in the object
+	 **/
+	function _set_drilldown_value( $array, $drilldown, $value ) {
+		$drilldown_arr = explode( '->', $drilldown );
+		if ( ! is_array( $array ) ) {
+			$array = array();
+		}
+
+		$drilldown_depth = count( $drilldown_arr );
+		$temp_arr = &$array;
+		foreach ( $drilldown_arr as $index => $drilldown_index ) {
+			if ( $index == $drilldown_depth - 1 ) {
+				$temp_arr[ $drilldown_index ] = $value;
+			}
+			else {
+				if ( ! isset( $array[ $drilldown_index ] ) || ! is_array( $array[ $drilldown_index] ) ) {
+					$temp_arr[ $drilldown_index ] = array();
+				}
+			}
+
+			$temp_arr = &$temp_arr[ $drilldown_index ];
+		}
+
+		return $array;
+	}
 	/**
 	 * Runs on client
 	 * Process a post so any of the mapped meta keys also get processed in the batch
@@ -377,9 +468,22 @@ class RAMP_Meta_Mappings {
 						$meta_value = maybe_unserialize( $meta_value );
 						if ( in_array( $meta_key, $this->meta_keys_to_map ) && (int) $meta_value > 0 ) {
 							if ( is_array( $meta_value ) ) {
-								foreach ( $meta_value as $array_post_id ) {
-									if ( (int) $array_post_id > 0 ) {
-										$this->_process_post( $array_post_id );
+
+								// Drilldown
+								if ( in_array( $meta_key, $this->drilldown_keys ) ) {
+									foreach ( $this->drilldown_config[ $meta_key ] as $drilldown_pattern ) {
+										$drilldown_id = $this->_get_drilldown_value( $meta_value, $drilldown_pattern );
+										if ( (int) $drilldown_id > 0 ) {
+											$this->_process_post( $drilldown_id );
+										}
+									}
+								}
+								// Array of post ids
+								else {
+									foreach ( $meta_value as $array_post_id ) {
+										if ( (int) $array_post_id > 0 ) {
+											$this->_process_post( $array_post_id );
+										}
 									}
 								}
 							}
@@ -409,10 +513,10 @@ class RAMP_Meta_Mappings {
 			$this->existing_ids[] = $new_post->ID;
 			// Use for processes and notices
 			$this->added_posts[ $new_post->ID ] = array(
-										'post_title' => $new_post->post_title,
-										'post_type' => $new_post->post_type,
-										'guid' => $new_post->guid
-									);
+				'post_title' => $new_post->post_title,
+				'post_type' => $new_post->post_type,
+				'guid' => $new_post->guid
+			);
 			$this->batch_posts[] = $new_post->guid;
 			$this->process_post( $new_post->ID, false );
 		}
@@ -432,12 +536,14 @@ class RAMP_Meta_Mappings {
 			$batch_id = $_GET['batch'];
 			$meta = get_post_meta($batch_id, $this->history_key, true);
 			$meta_keys = isset($meta['meta_keys']) ? $meta['meta_keys'] : array();
+			$drilldown_config = isset($meta['drilldown_config']) ? $meta['drilldown_config'] : array();
 		}
 		else {
 			$meta_keys = $this->meta_keys_to_map;
 		}
 		$extras[$this->extras_id] = array(
 			'meta_keys' => $meta_keys, // The keys we're mapping (or were mapped)
+			'drilldown_config' => $drilldown_config, // Drilldown configuration
 			'mapped_posts' => $this->added_posts, // All posts which have been added to the batch by this plugin
 			'batch_posts' => $this->batch_posts, // All posts being sent in the batch
 			'name' => __('Meta Mappings', 'ramp-mm'),
@@ -516,6 +622,7 @@ class RAMP_Meta_Mappings {
 		$history_data = array(
 			'meta_keys' => $this->meta_keys_to_map,
 			'posts' => $this->added_posts,
+			'drilldown_config' => $this->drilldown_config,
 		);
 		update_post_meta($batch_id, $this->history_key, $history_data);
 		// Cleanup
@@ -573,16 +680,31 @@ class RAMP_Meta_Mappings {
 										$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $guid;
 									}
 								}
+								// @TODO Consider associative array of keys
 								// Process arrays of keys
 								else if ( is_array( $meta_value ) ) {
 									$storage_array = array();
-									foreach ($meta_value as $array_post_id ) {
-										$guid = cfd_get_post_guid( $array_post_id );
-										if ( $guid ) {
-											$storage_array[] = $guid;
+									// Drilldown
+									if ( in_array( $meta_key, $this->drilldown_keys ) ) {
+										$storage_array = $meta_value;
+										foreach ( $this->drilldown_config[ $meta_key ] as $drilldown_pattern ) {
+											$drilldown_id = $this->_get_drilldown_value( $meta_value, $drilldown_pattern );
+											$guid = cfd_get_post_guid( $drilldown_id );
+											if ( $guid ) {
+												 $this->_set_drilldown_value( $storage_array, $drilldown_pattern, $guid );
+											}
 										}
-										else {
-											$storage_array[] = $array_post_id;
+									}
+									// Array of ids
+									else {
+										foreach ($meta_value as $array_post_id ) {
+											$guid = cfd_get_post_guid( $array_post_id );
+											if ( $guid ) {
+												$storage_array[] = $guid;
+											}
+											else {
+												$storage_array[] = $array_post_id;
+											}
 										}
 									}
 									$c_data['post_types'][ $post_type ][ $post_guid ]['profile']['meta'][ $meta_key ] = $storage_array;
@@ -628,13 +750,28 @@ class RAMP_Meta_Mappings {
 				foreach ($post['meta'] as $meta_key => $meta_value) {
 					$meta_value = maybe_unserialize( $meta_value );
 					if ( is_array( $meta_value ) ) {
-						foreach ( $meta_value as $array_post_id ) {
-							$return_data = $this->_preflight_post( $array_post_id, $meta_added, $meta_key, $mapped_keys, $batch_items );
-							if ( isset( $return_data['type'] ) ) {
-								$ret[ $return_data['type'] ][] = $return_data['msg'];
+
+						// Drilldown
+						if ( in_array( $meta_key, $this->drilldown_keys ) ) {
+							foreach ( $this->drilldown_config[ $meta_key ] as $drilldown_pattern ) {
+								$drilldown_id = $this->_get_drilldown_value( $meta_value, $drilldown_pattern );
+								$return_data = $this->_preflight_post( $drilldown_id, $meta_added, $meta_key, $mapped_keys, $batch_items );
+								if ( isset( $return_data['type'] ) ) {
+									$ret[ $return_data['type'] ][] = $return_data['msg'];
+								}
+							}
+						}
+						// Array of IDs
+						else {
+							foreach ( $meta_value as $array_post_id ) {
+								$return_data = $this->_preflight_post( $array_post_id, $meta_added, $meta_key, $mapped_keys, $batch_items );
+								if ( isset( $return_data['type'] ) ) {
+									$ret[ $return_data['type'] ][] = $return_data['msg'];
+								}
 							}
 						}
 					}
+					// Single Value
 					else {
 						$return_data = $this->_preflight_post( $meta_value, $meta_added, $meta_key, $mapped_keys, $batch_items );
 						if ( isset( $return_data['type'] ) ) {
@@ -679,6 +816,8 @@ class RAMP_Meta_Mappings {
 
 			$batch_guids = (array) array_unique($batch_args['batch_posts']);
 			$mapped_keys = $batch_args['meta_keys'];
+			$drilldown_keys = array_keys( $batch_args['drilldown_config'] );
+			$drilldown_config = $batch_args['drilldown_config'];
 
 			// Loop through list of guids sent in the batch
 			foreach ( $batch_guids as $guid ) {
@@ -693,19 +832,34 @@ class RAMP_Meta_Mappings {
 								// ! is_numeric as this should come in via a guid
 								if ( in_array( $meta_key, $mapped_keys ) && ! is_numeric( $meta_value ) ) {
 									if ( is_array( $meta_value ) ) {
+										//@TODO consider associative array of just keys
 										$storage_array = array();
-										foreach ($meta_value as $array_guid_value ) {
-											if ( ! is_numeric( $array_guid_value ) ) {
-												$mapped_server_post = cfd_get_post_by_guid( $array_guid_value );
-												if ( $mapped_server_post ) {
-													$storage_array[] = $mapped_server_post->ID;
+										if ( in_array( $meta_key, $drilldown_keys ) ) {
+											$storage_array = $meta_value;
+											foreach ( $drilldown_config[ $meta_key ] as $drilldown_pattern ) {
+												$drilldown_id = $this->_get_drilldown_value( $meta_value, $drilldown_pattern );
+												if ( ! is_numeric( $array_guid_value ) ) {
+													$mapped_server_post = cfd_get_post_by_guid( $array_guid_value );
+													if ( $mapped_server_post ) {
+														$this->_set_drilldown_value( $storage_array, $drilldown_pattern, $mapped_server_post );
+													}
+												}
+											}
+										}
+										else {
+											foreach ($meta_value as $array_guid_value ) {
+												if ( ! is_numeric( $array_guid_value ) ) {
+													$mapped_server_post = cfd_get_post_by_guid( $array_guid_value );
+													if ( $mapped_server_post ) {
+														$storage_array[] = $mapped_server_post->ID;
+													}
+													else {
+														$storage_array[] = $array_guid_value;
+													}
 												}
 												else {
 													$storage_array[] = $array_guid_value;
 												}
-											}
-											else {
-												$storage_array[] = $array_guid_value;
 											}
 										}
 										update_post_meta( $server_post->ID, $meta_key, $storage_array, $meta_value );
