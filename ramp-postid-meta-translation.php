@@ -9,7 +9,7 @@ Author URI: http://crowdfavorite.com
 */
 
 /*
- * Copyright (c) 2012-2013 Crowd Favorite, Ltd. All rights reserved.
+ * Copyright (c) 2012-2015 Crowd Favorite, Ltd. All rights reserved.
  * http://crowdfavorite.com
  *
  * **********************************************************************
